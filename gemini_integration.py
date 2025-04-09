@@ -123,7 +123,7 @@ Here are some example tickers you could trade, and their current values. Remembe
 
         # Add previous plan section if available
         previous_plan_section = f"""
-Previous trading actions:
+Here is the result of the last time I asked you to analyze the market and give me a trading plan at that time:
 {previous_plan}
 """ if previous_plan else ""
 
