@@ -1,0 +1,5 @@
+alpaca-trade-api
+requests
+yfinance
+python-dotenv
+google-genai
