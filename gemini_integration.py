@@ -91,7 +91,7 @@ Output only the list of tickers (using their exact symbols, not names or anythin
         
         return unique_tickers
     
-    def build_prompt(self, portfolio_info, quote_data, previous_plan):
+    def build_prompt(self, portfolio_info, quote_data: dict, previous_plan):
         """
         Builds a comprehensive prompt that combines portfolio info, market data, and previous Gemini plans.
         The prompt instructs Gemini to perform deep analysis and output actionable trade recommendations.
@@ -115,7 +115,7 @@ Remember, as you are pretending to be a day trading assistant, you want to make 
 
         # Add market data section if available
         market_data_section = ""
-        if quote_data:
+        if quote_data and len(quote_data) > 0:
             market_data_section = f"""
 Here are some example tickers you could trade, and their current values. Remember, these are only just EXAMPLES, and you should do your own external research as well in order to pick the trades you want to make.
 {json.dumps(quote_data, indent=2)}
@@ -125,7 +125,7 @@ Here are some example tickers you could trade, and their current values. Remembe
         previous_plan_section = f"""
 Here is the result of the last time I asked you to analyze the market and give me a trading plan at that time:
 {previous_plan}
-""" if previous_plan else ""
+""" if (previous_plan and len(previous_plan) > 5) else ""
 
         # Add the trade action format instructions
         action_format = """
@@ -229,23 +229,3 @@ Provide a brief explanation of the key indicators and signals that led to each t
                 else:
                     trade[field] = None
         return trades
-
-
-# For backward compatibility, create a default instance
-_default_client = GeminiClient()
-
-# Expose the instance methods as module-level functions for backward compatibility
-def call_gemini(prompt):
-    return _default_client.call_gemini(prompt)
-
-def get_trending_stocks():
-    return _default_client.get_trending_stocks()
-
-def build_gemini_prompt(portfolio_info, quote_data, previous_plan):
-    return _default_client.build_prompt(portfolio_info, quote_data, previous_plan)
-
-def save_gemini_history(new_entry):
-    return _default_client.save_history(new_entry)
-
-def parse_gemini_response(response_text):
-    return _default_client.parse_response(response_text)
