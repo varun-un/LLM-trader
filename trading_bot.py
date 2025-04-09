@@ -72,11 +72,25 @@ def get_quote_data(tickers):
         try:
             response = requests.get(url, headers=headers)
             if response.status_code == 200:
-                quote_data[ticker] = response.json()  # Expected keys: c, h, l, o, pc
+                cur_ticker_data = response.json()  # Expected keys: c, h, l, o, pc
+
+                # change the key names to be more descriptive
+                quote_data[ticker] = {
+                    "current_price": cur_ticker_data.get("c"),
+                    "high_price": cur_ticker_data.get("h"),
+                    "low_price": cur_ticker_data.get("l"),
+                    "open_price": cur_ticker_data.get("o"),
+                    "prev_close_price": cur_ticker_data.get("pc"),
+                    "change": cur_ticker_data.get("d"),
+                    "percent_change": cur_ticker_data.get("dp"),
+                }
             else:
                 logging.error(f"Failed to fetch quote for {ticker}: {response.status_code}")
         except Exception as e:
             logging.error(f"Error fetching quote for {ticker}: {e}")
+
+
+
     return quote_data
 
 def execute_trade(trade):
@@ -84,6 +98,9 @@ def execute_trade(trade):
     Executes a trade using Alpaca-py.
     Uses limit orders if an order target price is given, otherwise submits a market order.
     """
+    print(trade)
+    return
+
     ticker = trade.get("ticker")
     action = trade.get("action", "").upper()
     quantity = trade.get("quantity")
@@ -171,8 +188,8 @@ def main():
     logging.info("Valid Trade Actions: " + json.dumps(valid_trades, indent=2))
 
     # 10. Execute each valid trade via Alpaca.
-    # for trade in valid_trades:
-    #     execute_trade(trade)
+    for trade in valid_trades:
+        execute_trade(trade)
 
 if __name__ == "__main__":
     main()

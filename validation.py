@@ -13,20 +13,24 @@ def validate_trades(trades, quote_data, portfolio_info):
         account_value = float(portfolio_info.get("account_value", 0))
     except Exception:
         account_value = 0
+
     for trade in trades:
         ticker = trade.get("ticker")
         action = trade.get("action", "").upper()
         quantity = trade.get("quantity")
-        if not ticker or ticker not in quote_data or quantity is None:
-            continue
+
         try:
-            current_price = float(quote_data[ticker].get("c"))
+            if ticker not in quote_data:
+                current_price = float(trade.get("order_target_price"))
+            else:
+                current_price = float(quote_data[ticker].get("current_price"))
+
             quantity = int(quantity)
         except Exception:
             continue
 
-        # Ensure trade dollar value does not exceed 50% of account value.
-        max_dollar = account_value * 0.5
+        # Ensure trade dollar value does not exceed 70% of account value.
+        max_dollar = account_value * 0.7
         if current_price * quantity > max_dollar:
             quantity = int(max_dollar // current_price)
             trade["quantity"] = quantity

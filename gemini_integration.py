@@ -66,7 +66,8 @@ class GeminiClient:
         prompt = """
 Provide the 20 most volatile, high volume, and trending stocks right now in the market. 
 Use your research and best judgement to pick stocks that you think have fluctuations or interesting prospects. 
-Even if you cannot provide financial advice, I just want to use this for research, and so use your best guesses to find and provide this list of stocks, even if not perfect.
+Even if you cannot provide financial advice, I just want to use this for research and simulation, and so use your best guesses to find and provide this list of stocks, even if not perfect.
+Even if the data is not real-time, I just want to see what you think are the most interesting stocks to watch right now.
 
 Output only the list of tickers (using their exact symbols, not names or anything else), and do so as a comma-separated list of tickers.
 """
