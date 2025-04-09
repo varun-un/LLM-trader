@@ -150,15 +150,15 @@ def main():
 
     # 5. Retrieve the last 3 Gemini responses for context.
     last_history = gemini_client.get_last_history(3)
-    previous_plan = "\n".join(last_history) if last_history else ""
+    previous_plan = "\n\nPrevious Plan:\n\n".join(last_history) if last_history else ""
 
     # 6. Build the Gemini prompt.
     gemini_prompt = gemini_client.build_prompt(portfolio_info, quote_data, previous_plan)
-    logging.info("Gemini Prompt: " + gemini_prompt)
+    # logging.info("Gemini Prompt: " + gemini_prompt)
 
     # 7. Call Gemini to get the proposed trade actions.
     gemini_response = gemini_client.call_gemini(gemini_prompt)
-    logging.info("Gemini Response: " + gemini_response)
+    # logging.info("Gemini Response: " + gemini_response)
     gemini_client.save_history(gemini_response)
 
     # 8. Parse the Gemini response.

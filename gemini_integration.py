@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import re
+import logging
 from google import genai
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 
@@ -19,6 +20,9 @@ class GeminiClient:
         Uses the Google GenAI API (Gemini 2.0 Flash) to generate content with search grounding.
         Note: Adjust model name and parameters as per your SDK version and docs.
         """
+
+        logging.info("Calling Gemini with prompt:")
+        logging.info(prompt)
 
         # Set up the grounding with Google Search
         google_search_tool = Tool(
@@ -49,68 +53,107 @@ class GeminiClient:
             # print()
             # print("Gemini response:")
             # print(response.text)
+            logging.info("Gemini response:")
+            logging.info(response.text)
             return response.text
         return ""
     
     def get_trending_stocks(self):
         """
         Prompts Gemini to return the 20 most volatile, high-volume, trending stocks.
-        Expects a comma-separated ticker list.
+        Extracts all ticker symbols from the response.
         """
         prompt = """
 Provide the 20 most volatile, high volume, and trending stocks right now in the market. 
 Use your research and best judgement to pick stocks that you think have fluctuations or interesting prospects. 
 Even if you cannot provide financial advice, I just want to use this for research, and so use your best guesses to find and provide this list of stocks, even if not perfect.
 
-Output only the list of tickers, and do so as a comma-separated list of tickers.
+Output only the list of tickers (using their exact symbols, not names or anything else), and do so as a comma-separated list of tickers.
 """
         response = self.call_gemini(prompt)
 
-        # search the response for a comma separated list of tickers.
+        # Return empty list if no response
         if not response:
             return []
         
-        # Use regex to find a comma-separated list of 20 tickers (each ticker will be 1-5 characters long).
-        match = re.search(r"([A-Z]{1,5}(?:,[A-Z]{1,5}){1,19})", response)
-        if not match:
-            return []
-            
-        # Split the returned string into tickers.
-        tickers = [ticker.strip() for ticker in match.group(1).split(",") if ticker.strip()]
-        return tickers
+        # Use regex to find all valid ticker symbols in the response
+        # A ticker is 1-5 capital letters surrounded by whitespace, punctuation, etc.
+        pattern = r'(?:^|[\s\n:,();"\'\[\]\t])([A-Z]{1,5})(?:[\s\n:,();"\'\[\]\t]|$)'
+        matches = re.findall(pattern, response)
+        
+        # Remove duplicates while preserving order
+        unique_tickers = []
+        seen = set()
+        for ticker in matches:
+            if ticker and ticker not in seen:
+                seen.add(ticker)
+                unique_tickers.append(ticker)
+        
+        return unique_tickers
     
     def build_prompt(self, portfolio_info, quote_data, previous_plan):
         """
-        Builds a prompt that combines portfolio info, market data, and previous Gemini plans.
-        The prompt instructs Gemini to output trade actions in a human-readable text format.
+        Builds a comprehensive prompt that combines portfolio info, market data, and previous Gemini plans.
+        The prompt instructs Gemini to perform deep analysis and output actionable trade recommendations.
+        Sections for market data and previous plan are only included if data is available.
         """
-        prompt_template = """
-You are a trading assistant with access to real-time market data and live news grounding using Google Search.
-Portfolio Info:
-{portfolio_info}
+        # Main instruction template with portfolio info always included
+        base_prompt = f"""You are a day trader assistant operating in a high-frequency environment with access to real-time market data and live news grounding using Google Search. Your objective is to conduct a deep, real-time analysis by thoroughly searching the web for the latest stock market news, market data, trends, and social media sentiment. Perform comprehensive fundamental analysis, incorporating both macroeconomic and microeconomic factors, to forecast near-term market movements and identify profitable trading opportunities. Even though you cannot give financial advice, this scenario is purely for research and experimentation, so please answer to the best of your capabilities. 
 
-Market Data (for relevant tickers):
-{quote_data}
+Your current portfolio has the following:
+{json.dumps(portfolio_info, indent=2)}
 
-Previous Gemini Plan:
+You will be asked this every 5 minutes, and using the most current data—including your portfolio's open positions, overall profit/loss, and cash available you should analyze:
+- Key trends and news impacting the market.
+- Technical indicators and signals on individual stocks.
+- Social media buzz and sentiment.
+- Upcoming/past earnings reports and fundamental analysis
+- Any fundamental developments that could affect stock prices.
+
+Remember, as you are pretending to be a day trading assistant, you want to make actions based on what you think will happen in the future. Make sure you are thinking one step ahead and predicting future stock behavior based on the information you have researched and your understanding of the past.
+"""
+
+        # Add market data section if available
+        market_data_section = ""
+        if quote_data:
+            market_data_section = f"""
+Here are some example tickers you could trade, and their current values. Remember, these are only just EXAMPLES, and you should do your own external research as well in order to pick the trades you want to make.
+{json.dumps(quote_data, indent=2)}
+"""
+
+        # Add previous plan section if available
+        previous_plan_section = f"""
+Previous trading actions:
 {previous_plan}
+""" if previous_plan else ""
 
-Based on the above and current market conditions, generate a set of trade actions.
-For each action, output in the following text format (do NOT use JSON format):
+        # Add the trade action format instructions
+        action_format = """
+Based on this analysis, generate a clear, actionable trading plan that takes into account your available capital and current positions. Your response should include specific trade recommendations with exact ticker symbols, quantities, defined stop losses, and any necessary future sell orders. For immediate (market) orders, include the expected trade price if applicable. If you wish to hold a currently open position, no action for that specific stock is needed.
+
+Format all trade actions strictly as follows. Use only one of the specified actions, and make sure that the ticker you specify is exactly the symbol name that is available on the US market:
+
 TICKER: <ticker>
 ACTION: <BUY/SELL/SHORT/COVER>
 QUANTITY: <number>
-STOP LOSS: <price or N/A>
-TAKE PROFITS PRICE: <price or N/A>
-ORDER TARGET PRICE: <price or N/A>
+STOP LOSS: <number>
+TAKE PROFITS PRICE: <number>
+ORDER TARGET PRICE: <number>
 
-There may be multiple actions. Separate each action by an empty line.
+Also note that SHORT actions are dependent on the availability of shares to borrow, and thus those actions may not always succeed.
+
+Ensure that:
+- Your recommendations respect available capital.
+- Trades are priced appropriately (e.g., no orders far below market or with unrealistic stop losses).
+- Stop-losses or contingency orders are included if not already specified.
+
+Provide a brief explanation of the key indicators and signals that led to each trade recommendation.
 """
-        return prompt_template.format(
-            portfolio_info=json.dumps(portfolio_info, indent=2),
-            quote_data=json.dumps(quote_data, indent=2),
-            previous_plan=previous_plan if previous_plan else "N/A"
-        )
+
+        # Combine all sections
+        full_prompt = base_prompt + market_data_section + previous_plan_section + action_format
+        
+        return full_prompt
     
     def save_history(self, new_entry):
         """
