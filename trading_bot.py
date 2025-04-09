@@ -5,14 +5,11 @@ import requests
 from dotenv import load_dotenv
 import os
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Import custom modules
-from gemini_integration import (
-    get_trending_stocks,
-    build_gemini_prompt,
-    call_gemini,
-    save_gemini_history,
-    parse_gemini_response
-)
+from gemini_integration import GeminiClient
 from validation import validate_trades
 
 # Alpaca-py SDK imports
@@ -20,16 +17,17 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 
-# Load environment variables from .env file
-load_dotenv()
-
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 ALPACA_BASE_URL = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
 
 # Instantiate Alpaca TradingClient (paper trading enabled)
 trading_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
+
+# Instantiate GeminiClient
+gemini_client = GeminiClient(api_key=GOOGLE_GENAI_API_KEY)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,18 +78,6 @@ def get_quote_data(tickers):
         except Exception as e:
             logging.error(f"Error fetching quote for {ticker}: {e}")
     return quote_data
-
-def get_last_gemini_history(n=3):
-    from datetime import date
-    folder = "gemini_history"
-    today = date.today().isoformat()
-    file_path = os.path.join(folder, f"{today}.json")
-    if os.path.exists(file_path):
-        with open(file_path, "r") as f:
-            history = json.load(f)
-        return history[-n:]
-    else:
-        return []
 
 def execute_trade(trade):
     """
@@ -146,7 +132,7 @@ def execute_trade(trade):
 
 def main():
     # 1. Retrieve trending stocks via Gemini.
-    trending_stocks = get_trending_stocks()
+    trending_stocks = gemini_client.get_trending_stocks()
     logging.info("Trending Stocks: " + str(trending_stocks))
 
     # 2. Fetch portfolio information from Alpaca.
@@ -163,20 +149,20 @@ def main():
     logging.info("Quote Data: " + json.dumps(quote_data, indent=2))
 
     # 5. Retrieve the last 3 Gemini responses for context.
-    last_history = get_last_gemini_history()
+    last_history = gemini_client.get_last_history(3)
     previous_plan = "\n".join(last_history) if last_history else ""
 
     # 6. Build the Gemini prompt.
-    gemini_prompt = build_gemini_prompt(portfolio_info, quote_data, previous_plan)
+    gemini_prompt = gemini_client.build_prompt(portfolio_info, quote_data, previous_plan)
     logging.info("Gemini Prompt: " + gemini_prompt)
 
     # 7. Call Gemini to get the proposed trade actions.
-    gemini_response = call_gemini(gemini_prompt)
+    gemini_response = gemini_client.call_gemini(gemini_prompt)
     logging.info("Gemini Response: " + gemini_response)
-    save_gemini_history(gemini_response)
+    gemini_client.save_history(gemini_response)
 
     # 8. Parse the Gemini response.
-    trades = parse_gemini_response(gemini_response)
+    trades = gemini_client.parse_response(gemini_response)
     logging.info("Parsed Trade Actions: " + json.dumps(trades, indent=2))
 
     # 9. Validate the trade actions.
@@ -184,8 +170,8 @@ def main():
     logging.info("Valid Trade Actions: " + json.dumps(valid_trades, indent=2))
 
     # 10. Execute each valid trade via Alpaca.
-    for trade in valid_trades:
-        execute_trade(trade)
+    # for trade in valid_trades:
+    #     execute_trade(trade)
 
 if __name__ == "__main__":
     main()
