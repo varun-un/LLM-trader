@@ -5,19 +5,60 @@ def validate_trades(trades, quote_data, portfolio_info):
     - For BUY/COVER orders: the stop loss must be at least 80% of the current price.
     - For SELL/SHORT orders: the stop loss must be no more than 120% of the current price.
     - Adjusts the stop loss if it is missing or set incorrectly.
-    - Also ensures that the order value does not exceed 50% of the total portfolio equity.
+    - Ensures that the order value does not exceed 70% of the total portfolio equity.
+    - Validates SELL/COVER actions against existing positions.
+    - Removes duplicate ticker/action pairs, keeping only the last one.
+    
     Returns a list of validated (or adjusted) trade actions.
     """
+    # First, handle duplicate trades by keeping only the last one for each ticker/action pair
+    unique_trades = {}
+    for trade in trades:
+        ticker = trade.get("ticker")
+        action = trade.get("action", "").upper()
+        if ticker and action:
+            key = f"{ticker}_{action}"
+            unique_trades[key] = trade
+    
+    # Get current positions from portfolio info
+    positions = {}
+    for position in portfolio_info.get("positions", []):
+        ticker = position.get("ticker", "").upper()
+        qty = float(position.get("qty", 0))
+        if ticker:
+            # Positive quantity means long position, negative means short position
+            positions[ticker] = qty
+    
     valid_trades = []
     try:
         account_value = float(portfolio_info.get("account_value", 0))
     except Exception:
         account_value = 0
 
-    for trade in trades:
+    # Process the unique trades
+    for trade in unique_trades.values():
         ticker = trade.get("ticker")
         action = trade.get("action", "").upper()
         quantity = trade.get("quantity")
+
+        # Check if SELL/COVER actions have corresponding positions
+        if action == "SELL":
+            position_qty = positions.get(ticker, 0)
+            if position_qty <= 0:  # No long position to sell
+                continue
+            # Limit quantity to available position size
+            if quantity > position_qty:
+                quantity = int(position_qty)
+                trade["quantity"] = quantity
+        
+        elif action == "COVER":
+            position_qty = positions.get(ticker, 0)
+            if position_qty >= 0:  # No short position to cover
+                continue
+            # Limit quantity to available short position size (shorts are negative)
+            if quantity > abs(position_qty):
+                quantity = int(abs(position_qty))
+                trade["quantity"] = quantity
 
         try:
             if ticker not in quote_data:

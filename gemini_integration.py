@@ -64,7 +64,7 @@ class GeminiClient:
         Extracts all ticker symbols from the response.
         """
         prompt = """
-Provide the 20 most volatile, high volume, and trending stocks right now in the market. 
+Provide the 15 most volatile, high volume, and trending stocks right now in the market. 
 Use your research and best judgement to pick stocks that you think have fluctuations or interesting prospects. 
 Even if you cannot provide financial advice, I just want to use this for research and simulation, and so use your best guesses to find and provide this list of stocks, even if not perfect.
 Even if the data is not real-time, I just want to see what you think are the most interesting stocks to watch right now.
@@ -129,7 +129,7 @@ Here is the result of the last time I asked you to analyze the market and give m
 """ if (previous_plan and len(previous_plan) > 5) else ""
 
         # Add the trade action format instructions
-        action_format = """
+        action_format = f"""
 Based on this analysis, generate a clear, actionable trading plan that takes into account your available capital and current positions. Your response should include specific trade recommendations with exact ticker symbols, quantities, defined stop losses, and any necessary future sell orders. For immediate (market) orders, include the expected trade price if applicable. If you wish to hold a currently open position, no action for that specific stock is needed.
 
 Format all trade actions strictly as follows. Use only one of the specified actions, and make sure that the ticker you specify is exactly the symbol name that is available on the US market:
@@ -147,6 +147,9 @@ Ensure that:
 - Your recommendations respect available capital.
 - Trades are priced appropriately (e.g., no orders far below market or with unrealistic stop losses).
 - Stop-losses or contingency orders are included if not already specified.
+- You can only sell or cover shares that you already own or have shorted, respectively, so make sure to check your portfolio before making these actions.
+
+{"" if len(portfolio_info.get("positions", [])) > 0 else "You currently have no open positions. You cannot sell or cover any stocks."}
 
 Provide a brief explanation of the key indicators and signals that led to each trade recommendation.
 """

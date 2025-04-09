@@ -62,7 +62,7 @@ def get_relevant_tickers(open_positions, trending_stocks):
         tickers.add(pos["ticker"])
     for t in trending_stocks:
         tickers.add(t)
-    return list(tickers)[:60]
+    return list(tickers)[-30:]  # Limit to the last 30 tickers
 
 def get_quote_data(tickers):
     headers = {"X-Finnhub-Token": FINNHUB_API_KEY}
@@ -72,7 +72,7 @@ def get_quote_data(tickers):
         try:
             response = requests.get(url, headers=headers)
             if response.status_code == 200:
-                cur_ticker_data = response.json()  # Expected keys: c, h, l, o, pc
+                cur_ticker_data = response.json()  # Expected keys: c, h, l, o, pc, d, dp, t
 
                 # change the key names to be more descriptive
                 quote_data[ticker] = {
@@ -81,8 +81,8 @@ def get_quote_data(tickers):
                     "low_price": cur_ticker_data.get("l"),
                     "open_price": cur_ticker_data.get("o"),
                     "prev_close_price": cur_ticker_data.get("pc"),
-                    "change": cur_ticker_data.get("d"),
-                    "percent_change": cur_ticker_data.get("dp"),
+                    "daily_change": cur_ticker_data.get("d"),
+                    "daily_percent_change": cur_ticker_data.get("dp"),
                 }
             else:
                 logging.error(f"Failed to fetch quote for {ticker}: {response.status_code}")
