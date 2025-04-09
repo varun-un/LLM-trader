@@ -1,7 +1,7 @@
 import os
 import json
 import datetime
-import google.generativeai as genai
+from google import genai
 
 # Configure the Google Generative AI API with your key.
 genai.configure(api_key=os.getenv("GOOGLE_GENAI_API_KEY"))

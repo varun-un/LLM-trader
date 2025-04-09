@@ -1,4 +1,4 @@
-alpaca-trade-api
+alpaca-py
 requests
 yfinance
 python-dotenv

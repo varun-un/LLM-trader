@@ -2,9 +2,6 @@ import os
 import json
 import logging
 import requests
-from alpaca_trade_api import REST as AlpacaRest
-import alpaca_trade_api.errors as alpaca_errors
-import yfinance as yf
 from dotenv import load_dotenv
 import os
 
@@ -18,7 +15,12 @@ from gemini_integration import (
 )
 from validation import validate_trades
 
-# Load environment variables from .env
+# Alpaca-py SDK imports
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
+
+# Load environment variables from .env file
 load_dotenv()
 
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
@@ -26,8 +28,8 @@ ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 ALPACA_BASE_URL = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
-# Initialize Alpaca client.
-alpaca_client = AlpacaRest(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL)
+# Instantiate Alpaca TradingClient (paper trading enabled)
+trading_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,15 +39,15 @@ logging.basicConfig(
 
 def get_portfolio_info():
     try:
-        account = alpaca_client.get_account()
-        positions = alpaca_client.list_positions()
+        account = trading_client.get_account()
+        positions = trading_client.get_all_positions()
         positions_list = []
-        for p in positions:
+        for pos in positions:
             positions_list.append({
-                "ticker": p.symbol,
-                "qty": p.qty,
-                "unrealized_pl": p.unrealized_pl,
-                "current_price": p.current_price,
+                "ticker": pos.symbol,
+                "qty": pos.qty,
+                "unrealized_pl": pos.unrealized_pl,
+                "current_price": pos.current_price,
             })
         portfolio_info = {
             "account_value": account.equity,
@@ -72,7 +74,7 @@ def get_quote_data(tickers):
         try:
             response = requests.get(url, headers=headers)
             if response.status_code == 200:
-                quote_data[ticker] = response.json()  # Expect keys: c, h, l, o, pc
+                quote_data[ticker] = response.json()  # Expected keys: c, h, l, o, pc
             else:
                 logging.error(f"Failed to fetch quote for {ticker}: {response.status_code}")
         except Exception as e:
@@ -91,25 +93,76 @@ def get_last_gemini_history(n=3):
     else:
         return []
 
+def execute_trade(trade):
+    """
+    Executes a trade using Alpaca-py.
+    Uses limit orders if an order target price is given, otherwise submits a market order.
+    """
+    ticker = trade.get("ticker")
+    action = trade.get("action", "").upper()
+    quantity = trade.get("quantity")
+    order_target_price = trade.get("order_target_price")
+
+    try:
+        if order_target_price is not None:
+            # Create a limit order request.
+            if action in ["BUY", "COVER"]:
+                order_req = LimitOrderRequest(
+                    symbol=ticker,
+                    qty=quantity,
+                    side=OrderSide.BUY,
+                    limit_price=order_target_price,
+                    time_in_force=TimeInForce.DAY
+                )
+            elif action in ["SELL", "SHORT"]:
+                order_req = LimitOrderRequest(
+                    symbol=ticker,
+                    qty=quantity,
+                    side=OrderSide.SELL,
+                    limit_price=order_target_price,
+                    time_in_force=TimeInForce.DAY
+                )
+            order = trading_client.submit_order(order_req)
+        else:
+            # Create a market order request.
+            if action in ["BUY", "COVER"]:
+                order_req = MarketOrderRequest(
+                    symbol=ticker,
+                    qty=quantity,
+                    side=OrderSide.BUY,
+                    time_in_force=TimeInForce.DAY
+                )
+            elif action in ["SELL", "SHORT"]:
+                order_req = MarketOrderRequest(
+                    symbol=ticker,
+                    qty=quantity,
+                    side=OrderSide.SELL,
+                    time_in_force=TimeInForce.DAY
+                )
+            order = trading_client.submit_order(order_req)
+        logging.info(f"Placed order: {order}")
+    except Exception as e:
+        logging.error(f"Error executing trade {trade}: {e}")
+
 def main():
-    # 1. Get trending stocks via Gemini.
+    # 1. Retrieve trending stocks via Gemini.
     trending_stocks = get_trending_stocks()
     logging.info("Trending Stocks: " + str(trending_stocks))
 
-    # 2. Get portfolio information from Alpaca.
+    # 2. Fetch portfolio information from Alpaca.
     portfolio_info = get_portfolio_info()
     logging.info("Portfolio Info: " + json.dumps(portfolio_info, indent=2))
 
-    # 3. Generate a list of relevant tickers (current positions + trending stocks).
+    # 3. Form a list of relevant tickers (open positions + trending stocks).
     open_positions = portfolio_info.get("positions", [])
     relevant_tickers = get_relevant_tickers(open_positions, trending_stocks)
     logging.info("Relevant Tickers: " + str(relevant_tickers))
 
-    # 4. Fetch market quotes from Finnhub.
+    # 4. Fetch market quotes for these tickers using Finnhub.
     quote_data = get_quote_data(relevant_tickers)
     logging.info("Quote Data: " + json.dumps(quote_data, indent=2))
 
-    # 5. Get the last 3 Gemini responses (for context).
+    # 5. Retrieve the last 3 Gemini responses for context.
     last_history = get_last_gemini_history()
     previous_plan = "\n".join(last_history) if last_history else ""
 
@@ -117,65 +170,22 @@ def main():
     gemini_prompt = build_gemini_prompt(portfolio_info, quote_data, previous_plan)
     logging.info("Gemini Prompt: " + gemini_prompt)
 
-    # 7. Call Gemini for trade actions.
+    # 7. Call Gemini to get the proposed trade actions.
     gemini_response = call_gemini(gemini_prompt)
     logging.info("Gemini Response: " + gemini_response)
     save_gemini_history(gemini_response)
 
-    # 8. Parse Gemini response to extract trade actions.
+    # 8. Parse the Gemini response.
     trades = parse_gemini_response(gemini_response)
     logging.info("Parsed Trade Actions: " + json.dumps(trades, indent=2))
 
-    # 9. Validate trade actions.
+    # 9. Validate the trade actions.
     valid_trades = validate_trades(trades, quote_data, portfolio_info)
     logging.info("Valid Trade Actions: " + json.dumps(valid_trades, indent=2))
 
-    # 10. Execute valid trades via Alpaca.
+    # 10. Execute each valid trade via Alpaca.
     for trade in valid_trades:
-        ticker = trade.get("ticker")
-        action = trade.get("action", "").upper()
-        quantity = trade.get("quantity")
-        order_target_price = trade.get("order_target_price")
-        try:
-            if order_target_price:
-                if action in ["BUY", "COVER"]:
-                    alpaca_client.submit_order(
-                        symbol=ticker,
-                        qty=quantity,
-                        side="buy",
-                        type="limit",
-                        limit_price=order_target_price,
-                        time_in_force="day"
-                    )
-                elif action in ["SELL", "SHORT"]:
-                    alpaca_client.submit_order(
-                        symbol=ticker,
-                        qty=quantity,
-                        side="sell",
-                        type="limit",
-                        limit_price=order_target_price,
-                        time_in_force="day"
-                    )
-            else:
-                if action in ["BUY", "COVER"]:
-                    alpaca_client.submit_order(
-                        symbol=ticker,
-                        qty=quantity,
-                        side="buy",
-                        type="market",
-                        time_in_force="day"
-                    )
-                elif action in ["SELL", "SHORT"]:
-                    alpaca_client.submit_order(
-                        symbol=ticker,
-                        qty=quantity,
-                        side="sell",
-                        type="market",
-                        time_in_force="day"
-                    )
-            logging.info(f"Placed order for {trade}")
-        except Exception as e:
-            logging.error(f"Error executing trade {trade}: {e}")
+        execute_trade(trade)
 
 if __name__ == "__main__":
     main()
