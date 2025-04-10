@@ -14,7 +14,7 @@ from validation import validate_trades
 
 # Alpaca-py SDK imports
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest, BracketOrderRequest
+from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, OrderType, TimeInForce, OrderClass
 
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
@@ -130,8 +130,12 @@ def execute_trade(order_dict: dict):
     if action in ["BUY", "SHORT"]:
         stop_loss_value = order_dict.get("stop_loss")
         take_profit_value = order_dict.get("take_profits_price")
+        if action == "SHORT":
+            limit_loss_price = stop_loss_value + (stop_loss_value * 0.01)  # 1% above stop loss for short
+        else:
+            limit_loss_price = stop_loss_value - (stop_loss_value * 0.01)
         
-        bracket_order = BracketOrderRequest(
+        bracket_order = MarketOrderRequest(
             symbol=ticker,
             qty=qty,
             side=order_side,
@@ -139,7 +143,7 @@ def execute_trade(order_dict: dict):
             time_in_force=TimeInForce.GTC,   # Good 'til canceled; adjust as needed.
             order_class=OrderClass.BRACKET,  # This signals that extra orders are attached.
             take_profit={"limit_price": take_profit_value},
-            stop_loss={"stop_price": stop_loss_value, "limit_price": stop_loss_value}
+            stop_loss={"stop_price": stop_loss_value, "limit_price": limit_loss_price}
         )
         response = trading_client.submit_order(order_data=bracket_order)
         return response
@@ -158,6 +162,24 @@ def execute_trade(order_dict: dict):
 
 
 def main():
+
+    # Check the market is open
+    headers = {"X-Finnhub-Token": FINNHUB_API_KEY}
+    url = f"https://finnhub.io/api/v1/stock/market-status?exchange=US"
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            market_status = response.json()  
+
+            if market_status.get("isOpen", True) == False:
+                logging.info("Market is closed. Exiting.")
+                return
+            
+    except Exception as e:
+        logging.error(f"Error fetching market status: {e}")
+
+
+
     # 1. Retrieve trending stocks via Gemini.
     trending_stocks = gemini_client.get_trending_stocks()
     logging.info("Trending Stocks: " + str(trending_stocks))
