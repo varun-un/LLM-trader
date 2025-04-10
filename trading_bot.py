@@ -14,8 +14,8 @@ from validation import validate_trades
 
 # Alpaca-py SDK imports
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.requests import MarketOrderRequest, BracketOrderRequest
+from alpaca.trading.enums import OrderSide, OrderType, TimeInForce, OrderClass
 
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
@@ -93,57 +93,66 @@ def get_quote_data(tickers):
 
     return quote_data
 
-def execute_trade(trade):
+def execute_trade(order_dict: dict):
     """
-    Executes a trade using Alpaca-py.
-    Uses limit orders if an order target price is given, otherwise submits a market order.
+    Places an order using Alpaca's trading_client based on the provided order dictionary.
+
+    Parameters:
+        order_dict (dict): Dictionary containing the following keys:
+            - 'ticker' (str): e.g., 'NVDA'
+            - 'action' (str): one of 'BUY', 'SELL', 'SHORT', 'COVER'
+            - 'quantity' (int): number of shares
+            - 'stop_loss' (float): stop loss trigger price (used with BUY/SHORT)
+            - 'take_profits_price' (float): take profit limit price (used with BUY/SHORT)
+            - 'order_target_price' (float): target price (ignored for BUY/SHORT and for SELL/COVER)
+
+    Returns:
+        The response from trading_client.submit_order().
     """
 
-    ticker = trade.get("ticker")
-    action = trade.get("action", "").upper()
-    quantity = trade.get("quantity")
-    order_target_price = trade.get("order_target_price")
+    ticker = order_dict.get("ticker").upper()
+    action = order_dict.get("action", "").upper().trim()
+    qty = order_dict.get("quantity")
+    
+    # Determine order side: For BUY/COVER we submit a "buy" order,
+    # while for SELL/SHORT we submit a "sell" order.
+    if action in ["BUY", "COVER"]:
+        order_side = OrderSide.BUY
+    elif action in ["SELL", "SHORT"]:
+        order_side = OrderSide.SELL
+    else:
+        raise ValueError("Invalid action. Must be one of: BUY, SELL, SHORT, COVER")
+    
+    # For BUY and SHORT, we want a bracket order with stop loss and take profit.
+    if action in ["BUY", "SHORT"]:
+        stop_loss_value = order_dict.get("stop_loss")
+        take_profit_value = order_dict.get("take_profits_price")
+        
+        bracket_order = BracketOrderRequest(
+            symbol=ticker,
+            qty=qty,
+            side=order_side,
+            type=OrderType.MARKET,         # Use market order for entry.
+            time_in_force=TimeInForce.GTC,   # Good 'til canceled; adjust as needed.
+            order_class=OrderClass.BRACKET,  # This signals that extra orders are attached.
+            take_profit={"limit_price": take_profit_value},
+            stop_loss={"stop_price": stop_loss_value, "limit_price": stop_loss_value}
+        )
+        response = trading_client.submit_order(order_data=bracket_order)
+        return response
 
-    try:
-        if order_target_price is not None:
-            # Create a limit order request.
-            if action in ["BUY", "COVER"]:
-                order_req = LimitOrderRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=OrderSide.BUY,
-                    limit_price=order_target_price,
-                    time_in_force=TimeInForce.DAY
-                )
-            elif action in ["SELL", "SHORT"]:
-                order_req = LimitOrderRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=OrderSide.SELL,
-                    limit_price=order_target_price,
-                    time_in_force=TimeInForce.DAY
-                )
-            order = trading_client.submit_order(order_req)
-        else:
-            # Create a market order request.
-            if action in ["BUY", "COVER"]:
-                order_req = MarketOrderRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=OrderSide.BUY,
-                    time_in_force=TimeInForce.DAY
-                )
-            elif action in ["SELL", "SHORT"]:
-                order_req = MarketOrderRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=OrderSide.SELL,
-                    time_in_force=TimeInForce.DAY
-                )
-            order = trading_client.submit_order(order_req)
-        logging.info(f"Placed order: {order}")
-    except Exception as e:
-        logging.error(f"Error executing trade {trade}: {e}")
+    # For SELL and COVER, we place a simple market order without additional orders.
+    elif action in ["SELL", "COVER"]:
+        market_order = MarketOrderRequest(
+            symbol=ticker,
+            qty=qty,
+            side=order_side,
+            type=OrderType.MARKET,
+            time_in_force=TimeInForce.GTC
+        )
+        response = trading_client.submit_order(order_data=market_order)
+        return response
+
 
 def main():
     # 1. Retrieve trending stocks via Gemini.
