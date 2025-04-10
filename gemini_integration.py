@@ -133,6 +133,7 @@ Here is the result of the last time I asked you to analyze the market and give m
 Based on this analysis, generate a clear, actionable trading plan that takes into account your available capital and current positions. Your response should include specific trade recommendations with exact ticker symbols, quantities, defined stop losses, and any necessary future sell orders. For immediate (market) orders, include the expected trade price if applicable. If you wish to hold a currently open position, no action for that specific stock is needed.
 
 Format all trade actions strictly as follows. Use only one of the specified actions, and make sure that the ticker you specify is exactly the symbol name that is available on the US market:
+make sure that you include EVERY ONE of the below fields in the required structure.
 
 TICKER: <ticker>
 ACTION: <BUY/SELL/SHORT/COVER>
@@ -144,7 +145,7 @@ ORDER TARGET PRICE: <number>
 Also note that SHORT actions are dependent on the availability of shares to borrow, and thus those actions may not always succeed.
 
 Ensure that:
-- Your recommendations respect available capital.
+- Your recommendations respect available capital. Avoid borrowing on margin.
 - Trades are priced appropriately (e.g., no orders far below market or with unrealistic stop losses).
 - Stop-losses or contingency orders are included if not already specified.
 - You can only sell or cover shares that you already own or have shorted, respectively, so make sure to check your portfolio before making these actions.
@@ -164,7 +165,7 @@ Make your explanations of your rationale brief and concise. You can place as man
         Saves the Gemini response history to a JSON file.
         A separate file is created for each trading day inside the folder "gemini_history".
         """
-        folder = "gemini_history"
+        folder = "C:\\Users\\varun\\Documents\\Python\\LLM-trader\\gemini_history"
         if not os.path.exists(folder):
             os.makedirs(folder)
         today = datetime.date.today().isoformat()  # e.g., "2025-04-10"
@@ -196,7 +197,7 @@ Make your explanations of your rationale brief and concise. You can place as man
                 'w' means it happened last week
 
         """
-        folder = "gemini_history"
+        folder = "C:\\Users\\varun\\Documents\\Python\\LLM-trader\\gemini_history"
         today = datetime.date.today().isoformat()
         file_path = os.path.join(folder, f"{today}.json")
 

@@ -31,7 +31,7 @@ gemini_client = GeminiClient(api_key=GOOGLE_GENAI_API_KEY)
 
 logging.basicConfig(
     level=logging.INFO,
-    filename='trading_bot.log',
+    filename='C:\\Users\\varun\\Documents\\Python\\LLM-trader\\trading_bot.log',
     format='%(asctime)s:%(levelname)s:%(message)s'
 )
 
@@ -49,6 +49,9 @@ def get_portfolio_info():
             })
         portfolio_info = {
             "account_value": account.equity,
+            "cash_balance": account.cash,
+            "buying_power": account.buying_power,
+            "amount_borrowed_on_margin": max(0, float(account.cash) - float(account.equity)),
             "positions": positions_list,
         }
         return portfolio_info
@@ -114,7 +117,7 @@ def execute_trade(order_dict: dict):
     """
 
     ticker = order_dict.get("ticker").upper()
-    action = order_dict.get("action", "").upper().trim()
+    action = order_dict.get("action", "").upper()
     qty = order_dict.get("quantity")
     
     # Determine order side: For BUY/COVER we submit a "buy" order,
@@ -134,6 +137,11 @@ def execute_trade(order_dict: dict):
             limit_loss_price = stop_loss_value + (stop_loss_value * 0.01)  # 1% above stop loss for short
         else:
             limit_loss_price = stop_loss_value - (stop_loss_value * 0.01)
+
+        # round to 2 decimal places
+        stop_loss_value = round(stop_loss_value, 2)
+        take_profit_value = round(take_profit_value, 2)
+        limit_loss_price = round(limit_loss_price, 2)
         
         bracket_order = MarketOrderRequest(
             symbol=ticker,
@@ -158,6 +166,15 @@ def execute_trade(order_dict: dict):
             time_in_force=TimeInForce.GTC
         )
         response = trading_client.submit_order(order_data=market_order)
+
+        if response is None:
+            logging.error(f"Failed to place order for {ticker}.")
+            return None
+        if response.status_code != 200:
+            logging.error(f"Error placing order for {ticker}: {response.status_code}")
+        else:
+            logging.info(f"Order placed successfully for {ticker}: {response}")
+
         return response
 
 
@@ -226,7 +243,11 @@ def main():
 
     # 10. Execute each valid trade via Alpaca.
     for trade in valid_trades:
-        execute_trade(trade)
+        try:
+            execute_trade(trade)
+            logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in trade.items()])}")
+        except Exception as e:
+            logging.error(f"Error executing trade {trade}: {e}")
 
 if __name__ == "__main__":
     main()
