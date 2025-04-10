@@ -60,7 +60,7 @@ class GeminiClient:
     
     def get_trending_stocks(self):
         """
-        Prompts Gemini to return the 20 most volatile, high-volume, trending stocks.
+        Prompts Gemini to return the 15 most volatile, high-volume, trending stocks.
         Extracts all ticker symbols from the response.
         """
         prompt = """
@@ -151,7 +151,7 @@ Ensure that:
 
 {"" if len(portfolio_info.get("positions", [])) > 0 else "You currently have no open positions. You cannot sell or cover any stocks."}
 
-Provide a brief explanation of the key indicators and signals that led to each trade recommendation.
+Make your explanations of your rationale brief and concise. You can place as many trades as you want at once in order to maximize theoretical profits. 
 """
 
         # Combine all sections

@@ -56,12 +56,15 @@ def get_portfolio_info():
         logging.error(f"Error fetching portfolio info: {e}")
         return {}
 
-def get_relevant_tickers(open_positions, trending_stocks):
+def get_relevant_tickers(open_positions, trending_stocks, guaranteed_tickers=['SPY', 'DIA', 'SQQQ', 'TQQQ']):
     tickers = set()
     for pos in open_positions:
         tickers.add(pos["ticker"])
     for t in trending_stocks:
         tickers.add(t)
+    for t in guaranteed_tickers:
+        tickers.add(t)
+
     return list(tickers)[-30:]  # Limit to the last 30 tickers
 
 def get_quote_data(tickers):
