@@ -81,13 +81,13 @@ def validate_trades(trades, quote_data, portfolio_info):
         # Check and adjust stop loss based on action type.
         stop_loss = trade.get("stop_loss")
         if action in ["BUY", "COVER"]:
-            # For buys, stop loss should not be set lower than 80% of current price.
-            min_stop = current_price * 0.8
+            # For buys, stop loss should not be set lower than 70% of current price.
+            min_stop = current_price * 0.7
             if stop_loss is None or stop_loss < min_stop:
                 trade["stop_loss"] = round(min_stop, 2)
         elif action in ["SELL", "SHORT"]:
-            # For sells/shorts, stop loss should not be set higher than 120% of current price.
-            max_stop = current_price * 1.2
+            # For sells/shorts, stop loss should not be set higher than 130% of current price.
+            max_stop = current_price * 1.3
             if stop_loss is None or stop_loss > max_stop:
                 trade["stop_loss"] = round(max_stop, 2)
         valid_trades.append(trade)

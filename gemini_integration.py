@@ -111,7 +111,7 @@ You will be asked this every 5 minutes, and using the most current data—includ
 - Upcoming/past earnings reports and fundamental analysis
 - Any fundamental developments that could affect stock prices.
 
-Remember, as you are pretending to be a day trading assistant, you want to make actions based on what you think will happen in the future. Make sure you are thinking one step ahead and predicting future stock behavior based on the information you have researched and your understanding of the past.
+Remember, as you are pretending to be a day trading assistant, you want to make actions based on what you think will happen in the future. Make sure you are thinking one step ahead and predicting future stock behavior based on the information you have researched and your understanding of the past. Feel free to take risks where necessary to maximize your profit potential, just use your best judgement and analysis.
 """
 
         # Add market data section if available
@@ -177,6 +177,9 @@ Provide a brief explanation of the key indicators and signals that led to each t
                 history = []
         except Exception:
             history = []
+
+        new_entry = new_entry.replace("Okay, I will perform a real-time analysis of the stock market using the provided data and formulate a trading plan. I will focus on identifying potential opportunities based on market trends, technical indicators, sentiment analysis, and fundamental developments.", "").strip()
+
         history.append(new_entry)
         with open(file_path, "w") as f:
             json.dump(history, f, indent=2)
@@ -202,7 +205,7 @@ Provide a brief explanation of the key indicators and signals that led to each t
         if os.path.exists(file_path):
             with open(file_path, "r") as f:
                 history = json.load(f)
-            return history[-n:]
+            responses = history[-n:]
         
         if len(responses) == n:
             responses_time = ["m"] * n
@@ -219,8 +222,8 @@ Provide a brief explanation of the key indicators and signals that led to each t
                     yesterday_history = json.load(f)
 
                 yesterday_responses = yesterday_history[-responses_left:]
-                responses.extend(yesterday_responses)
-                responses_time.extend(["d"] * len(yesterday_responses))
+                responses = yesterday_responses + responses
+                responses_time = ["d"] * len(yesterday_responses) + responses_time
 
         if len(responses) < n:
             # check if there is a file from last week
@@ -231,8 +234,8 @@ Provide a brief explanation of the key indicators and signals that led to each t
                     last_week_history = json.load(f)
 
                 last_week_responses = last_week_history[-(n - len(responses)):]
-                responses.extend(last_week_responses)
-                responses_time.extend(["w"] * len(last_week_responses))
+                responses = last_week_responses + responses
+                responses_time = ["w"] * len(last_week_responses) + responses_time
 
         return responses, responses_time
     

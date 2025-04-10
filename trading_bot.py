@@ -98,8 +98,6 @@ def execute_trade(trade):
     Executes a trade using Alpaca-py.
     Uses limit orders if an order target price is given, otherwise submits a market order.
     """
-    print(trade)
-    return
 
     ticker = trade.get("ticker")
     action = trade.get("action", "").upper()
