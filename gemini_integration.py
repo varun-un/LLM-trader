@@ -181,19 +181,60 @@ Provide a brief explanation of the key indicators and signals that led to each t
         with open(file_path, "w") as f:
             json.dump(history, f, indent=2)
     
-    def get_last_history(self, n=3):
+    def get_last_history(self, n=3) -> tuple[list[str], list[str]]:
         """
         Retrieves the last n Gemini responses for the current trading day.
+
+        Returns:
+            - A list of the last n Gemini responses.
+            - A list of when the last n responses were made
+                'm' means on the order of minutes ago (same day)
+                'd' means on the order of days ago (yesterday)
+                'w' means it happened last week
+
         """
         folder = "gemini_history"
         today = datetime.date.today().isoformat()
         file_path = os.path.join(folder, f"{today}.json")
+
+        responses = []
+
         if os.path.exists(file_path):
             with open(file_path, "r") as f:
                 history = json.load(f)
             return history[-n:]
+        
+        if len(responses) == n:
+            responses_time = ["m"] * n
         else:
-            return []
+            responses_time = ["m"] * len(responses)
+
+            responses_left = n - len(responses)
+
+            # check if there is a file from yesterday
+            yesterday = datetime.date.today() - datetime.timedelta(days=1)
+            yesterday_file_path = os.path.join(folder, f"{yesterday.isoformat()}.json")
+            if os.path.exists(yesterday_file_path):
+                with open(yesterday_file_path, "r") as f:
+                    yesterday_history = json.load(f)
+
+                yesterday_responses = yesterday_history[-responses_left:]
+                responses.extend(yesterday_responses)
+                responses_time.extend(["d"] * len(yesterday_responses))
+
+        if len(responses) < n:
+            # check if there is a file from last week
+            last_week = datetime.date.today() - datetime.timedelta(weeks=1)
+            last_week_file_path = os.path.join(folder, f"{last_week.isoformat()}.json")
+            if os.path.exists(last_week_file_path):
+                with open(last_week_file_path, "r") as f:
+                    last_week_history = json.load(f)
+
+                last_week_responses = last_week_history[-(n - len(responses)):]
+                responses.extend(last_week_responses)
+                responses_time.extend(["w"] * len(last_week_responses))
+
+        return responses, responses_time
     
     def parse_response(self, response_text):
         """

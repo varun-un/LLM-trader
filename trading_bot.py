@@ -167,10 +167,15 @@ def main():
 
     # 5. Retrieve the last 3 Gemini responses for context.
     how_many_to_get = 3
-    last_history = gemini_client.get_last_history(how_many_to_get)
+    last_history, history_times = gemini_client.get_last_history(how_many_to_get)
     previous_plan = ""
     for idx, history in enumerate(last_history):
-        previous_plan += f"Plan from {(how_many_to_get - idx) * 5} minutes ago: \n{history}\n"
+        if history_times[idx] == 'w':
+            previous_plan += f"Plan from last week before close: \n{history}\n"
+        elif history_times[idx] == 'd':
+            previous_plan += f"Plan from yesterday before close: \n{history}\n"
+        else:
+            previous_plan += f"Plan from {(how_many_to_get - idx) * 5} minutes ago: \n{history}\n"
 
     # 6. Build the Gemini prompt.
     gemini_prompt = gemini_client.build_prompt(portfolio_info, quote_data, previous_plan)
