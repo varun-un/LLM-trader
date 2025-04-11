@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 import os
 import datetime
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -235,9 +236,11 @@ def execute_trade(order_dict: dict):
 
                 # Now, retry the cover/sell order
                 second_response = None
+                # wait to make sure the order is canceled fully
+                time.sleep(2)
                 try:
                     second_response = trading_client.submit_order(order_data=market_order)
-                    logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in order_dict.items()])}")
+                    logging.info(f"2nd try - Executed trade: {' '.join([f'{k}:{v}' for k, v in order_dict.items()])}")
                 except Exception as e:
                     logging.error(f"2nd try error executing trade for {order_dict}: {e}")
 
