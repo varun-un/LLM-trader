@@ -1,4 +1,7 @@
-def validate_trades(trades, quote_data, portfolio_info):
+import requests
+import logging
+
+def validate_trades(trades, quote_data, portfolio_info, FINNHUB_API_KEY):
     """
     Validates each trade action.
     
@@ -31,9 +34,14 @@ def validate_trades(trades, quote_data, portfolio_info):
     
     valid_trades = []
     try:
-        account_value = float(portfolio_info.get("buying_power", 0))
+        account_value = float(portfolio_info.get("account_value", 1000))
     except Exception:
         account_value = 0
+
+    try:
+        buying_power = float(portfolio_info.get("buying_power", 0))
+    except Exception:
+        buying_power = 0
 
     open_positions = {x.get("ticker", ""):x for x in portfolio_info.get("positions", [])}
 
@@ -80,18 +88,39 @@ def validate_trades(trades, quote_data, portfolio_info):
                 trade["quantity"] = quantity
 
         try:
-            if ticker not in quote_data:
+            if ticker not in quote_data and trade.get("order_target_price", None) is not None:
+                # Use the order target price if available
                 current_price = float(trade.get("order_target_price"))
             else:
-                current_price = float(quote_data[ticker].get("current_price"))
+                if ticker in quote_data:
+                    current_price = float(quote_data[ticker].get("current_price"))
+                else:
+                    # query the price from the API
+                    headers = {"X-Finnhub-Token": FINNHUB_API_KEY}
+                    url = f"https://finnhub.io/api/v1/quote?symbol={ticker}"
+                    try:
+                        response = requests.get(url, headers=headers)
+                        if response.status_code == 200:
+                            cur_ticker_data = response.json()  # Expected keys: c, h, l, o, pc, d, dp, t
+                            current_price = cur_ticker_data.get("c")
+                        else:
+                            logging.error(f"Error fetching data for {ticker}: {response.status_code}")
+                            continue
+                    except Exception as e:
+                        logging.error(f"Error fetching data for {ticker}: {e}")
+                        continue
 
             quantity = int(quantity)
         except Exception:
             continue
 
-        # Ensure trade dollar value does not exceed 70% of account value.
+        # Ensure trade dollar value is within buying power limits
+        if current_price * abs(quantity) > buying_power:
+            continue
+
+        # Ensure trade dollar value does not exceed 70% of account value
         max_dollar = account_value * 0.7
-        if current_price * quantity > max_dollar:
+        if current_price * abs(quantity) > max_dollar:
             quantity = int(max_dollar // current_price)
             trade["quantity"] = quantity
             if quantity == 0:

@@ -50,8 +50,7 @@ def get_portfolio_info():
         portfolio_info = {
             "account_value": account.equity,
             "cash_balance": account.cash,
-            "buying_power": account.buying_power,
-            "non_marginable_buying_power": account.non_marginable_buying_power,
+            "buying_power": account.non_marginable_buying_power,    # constrain LLM to only use cash - no margin
             "positions": positions_list,
         }
         return portfolio_info
@@ -326,7 +325,7 @@ def main():
     logging.info("Parsed Trade Actions: " + json.dumps(trades, indent=2))
 
     # 9. Validate the trade actions.
-    valid_trades = validate_trades(trades, quote_data, portfolio_info)
+    valid_trades = validate_trades(trades, quote_data, portfolio_info, FINNHUB_API_KEY)
     logging.info("Valid Trade Actions: " + json.dumps(valid_trades, indent=2))
 
     # 10. Execute each valid trade via Alpaca.
