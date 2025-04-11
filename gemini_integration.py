@@ -206,7 +206,7 @@ Make your explanations of your rationale contain your logic and future indicator
         # save the lessons learned to a file
         if lessons_learned:
             lessons_file_path = "C:\\Users\\varun\\Documents\\Python\\LLM-trader\\lessons_learned.txt"
-            with open(lessons_file_path, "a") as f:
+            with open(lessons_file_path, "w") as f:
                 f.write(lessons_learned)
 
         # call Gemini to summarize the entry

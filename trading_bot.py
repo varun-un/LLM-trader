@@ -253,15 +253,6 @@ def execute_trade(order_dict: dict):
             return None
 
     elif action in ["SELL", "COVER"]:
-        if action == "COVER":
-            # For COVER orders, cancel existing bracket orders and capture the original bracket data.
-            reserved_qty, original_bracket = cancel_bracket_orders_for_ticker(ticker)
-            # If the short position held by bracket orders exceeds the COVER qty,
-            # re-establish a bracket order for the remaining shares.
-            if reserved_qty > qty and original_bracket is not None:
-                remaining_qty = reserved_qty - qty
-                # Use the original bracket's stop loss and take profit.
-                reestablish_bracket_for_remaining_shares(ticker, remaining_qty, original_bracket, order_side)
 
         # Submit a simple market order for SELL or COVER.
         market_order = MarketOrderRequest(
