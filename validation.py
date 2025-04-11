@@ -118,14 +118,6 @@ def validate_trades(trades, quote_data, portfolio_info, FINNHUB_API_KEY):
         if current_price * abs(quantity) > buying_power:
             continue
 
-        # Ensure trade dollar value does not exceed 70% of account value
-        max_dollar = account_value * 0.7
-        if current_price * abs(quantity) > max_dollar:
-            quantity = int(max_dollar // current_price)
-            trade["quantity"] = quantity
-            if quantity == 0:
-                continue
-
         # Check and adjust stop loss based on action type.
         stop_loss = trade.get("stop_loss")
         if action in ["BUY", "COVER"]:

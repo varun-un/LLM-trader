@@ -277,7 +277,7 @@ def main():
         if response.status_code == 200:
             market_status = response.json()  
 
-            if market_status.get("isOpen", True) == False:
+            if market_status.get("isOpen", True) == False and market_status.get("session", "") != "post-market":
                 logging.info("Market is closed. Exiting.")
                 return
             
