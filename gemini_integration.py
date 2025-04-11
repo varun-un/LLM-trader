@@ -181,6 +181,24 @@ Make your explanations of your rationale brief and concise. You can place as man
 
         new_entry = new_entry.replace("Okay, I will perform a real-time analysis of the stock market using the provided data and formulate a trading plan. I will focus on identifying potential opportunities based on market trends, technical indicators, sentiment analysis, and fundamental developments.", "").strip()
 
+        # call Gemini to summarize the entry
+        prompt = f"""The following entry is the trading plan of a day trader assistant. Please generate a 4 sentence summary for it, while keeping the key details about the proposed plan and information intact. 
+This summary should give information about the rationale behind the proposed trades, as well as what to look out for over the course of the next 15 minutes to know whether to close the position or not, should the conditions or situation change. The entry is:
+
+{new_entry}
+"""
+        response = self.client.models.generate_content(
+            model="models/gemini-2.0-flash",
+            contents=prompt,
+            config=GenerateContentConfig(
+                response_modalities=["TEXT"],
+            )
+        )
+        new_entry = response.text
+
+        logging.info("Summarized entry:")
+        logging.info(new_entry)
+
         history.append(new_entry)
         with open(file_path, "w") as f:
             json.dump(history, f, indent=2)
