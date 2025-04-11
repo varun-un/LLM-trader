@@ -127,6 +127,18 @@ Here are some example tickers you could trade, and their current values. Remembe
 Here is the summary of the last few times I asked you to analyze the market the trading plan you provided at that time:
 {previous_plan}
 """ if (previous_plan and len(previous_plan) > 5) else ""
+        
+        # Add the lessons learned section if available
+        try:
+            lessons_learned = self.get_lessons_learned()
+        except Exception as e:
+            logging.error(f"Error retrieving lessons learned: {e}")
+            lessons_learned = ""
+
+        lessons_learned_section = f"""
+Here are the lessons learned from all the previous times I asked you to analyze the market:
+{lessons_learned}
+""" if lessons_learned else ""
 
         # Add the trade action format instructions
         action_format = f"""
@@ -149,14 +161,16 @@ Ensure that:
 - Trades are priced appropriately (e.g., no orders far below market or with unrealistic stop losses).
 - Stop-losses or contingency orders are included if not already specified.
 - You can only sell or cover shares that you already own or have shorted, respectively, so make sure to check your portfolio before making these actions.
-
 {"" if len(portfolio_info.get("positions", [])) > 0 else "You currently have no open positions. You cannot sell or cover any stocks."}
+
+In your response, consider lessons you have learned from past trades that can help you make better decisions in the future. You can update or modify the lessons you learned previously with new lessons you may have learned, but make sure to build off of old lessons learned. You should format these lessons as follows, and make sure to keep them concise:
+LESSONS LEARNED: <lesson 1>, <lesson 2>, ...
 
 Make your explanations of your rationale contain your logic and future indicators to look out for. You can place as many trades as you want at once in order to maximize theoretical profits, but if you are content with the current positions, you can make no trades at all as well.
 """
 
         # Combine all sections
-        full_prompt = base_prompt + market_data_section + previous_plan_section + action_format
+        full_prompt = base_prompt + market_data_section + previous_plan_section + lessons_learned_section + action_format
         
         return full_prompt
     
@@ -180,6 +194,20 @@ Make your explanations of your rationale contain your logic and future indicator
             history = []
 
         new_entry = new_entry.replace("Okay, I will perform a real-time analysis of the stock market using the provided data and formulate a trading plan. I will focus on identifying potential opportunities based on market trends, technical indicators, sentiment analysis, and fundamental developments.", "").strip()
+
+        # remove any line that starts with "LESSONS LEARNED:" up to the end of the line - save this line to a variable
+        lessons_learned = re.findall(r"LESSONS LEARNED: (.*)", new_entry)
+        if lessons_learned:
+            lessons_learned = lessons_learned[0].strip()
+            new_entry = re.sub(r"LESSONS LEARNED: .*", "", new_entry).strip()
+        else:
+            lessons_learned = ""
+
+        # save the lessons learned to a file
+        if lessons_learned:
+            lessons_file_path = "C:\\Users\\varun\\Documents\\Python\\LLM-trader\\lessons_learned.txt"
+            with open(lessons_file_path, "a") as f:
+                f.write(lessons_learned)
 
         # call Gemini to summarize the entry
         prompt = f"""The following entry is the trading plan of a day trader assistant. Please generate a 3-4 sentence summary for it, while keeping the key details about the proposed plan and information intact. 
@@ -257,6 +285,17 @@ This summary should give information about the rationale behind the proposed tra
                 responses_time = ["w"] * len(last_week_responses) + responses_time
 
         return responses, responses_time
+    
+    def get_lessons_learned(self) -> str:
+        """
+        Retrieves the lessons learned from the lessons_learned.txt file.
+        """
+        lessons_file_path = "C:\\Users\\varun\\Documents\\Python\\LLM-trader\\lessons_learned.txt"
+        if os.path.exists(lessons_file_path):
+            with open(lessons_file_path, "r") as f:
+                lessons = f.read()
+            return lessons.strip()
+        return ""
     
     def parse_response(self, response_text):
         """
