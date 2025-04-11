@@ -4,6 +4,7 @@ import logging
 import requests
 from dotenv import load_dotenv
 import os
+import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,9 +30,16 @@ trading_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
 # Instantiate GeminiClient
 gemini_client = GeminiClient(api_key=GOOGLE_GENAI_API_KEY)
 
+# configure logging
+if not os.path.exists('C:\\Users\\varun\\Documents\\Python\\LLM-trader\\logs'):
+    os.makedirs('C:\\Users\\varun\\Documents\\Python\\LLM-trader\\logs')
+
+# get today's date
+today = datetime.datetime.today().strftime('%Y-%m-%d')
+
 logging.basicConfig(
     level=logging.INFO,
-    filename='C:\\Users\\varun\\Documents\\Python\\LLM-trader\\trading_bot.log',
+    filename=f'C:\\Users\\varun\\Documents\\Python\\LLM-trader\\logs\\{today}.log',
     format='%(asctime)s:%(levelname)s:%(message)s'
 )
 
@@ -44,7 +52,7 @@ def get_portfolio_info():
             positions_list.append({
                 "ticker": pos.symbol,
                 "qty": pos.qty,
-                "unrealized_pl": pos.unrealized_pl,
+                "unrealized_profit_loss": pos.unrealized_pl,
                 "current_price": pos.current_price,
             })
         portfolio_info = {
