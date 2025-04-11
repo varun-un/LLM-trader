@@ -15,8 +15,8 @@ from validation import validate_trades
 
 # Alpaca-py SDK imports
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
-from alpaca.trading.enums import OrderSide, OrderType, TimeInForce, OrderClass
+from alpaca.trading.requests import MarketOrderRequest, GetOrdersRequest
+from alpaca.trading.enums import OrderSide, OrderType, TimeInForce, OrderClass, QueryOrderStatus
 
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
@@ -56,8 +56,8 @@ def get_portfolio_info():
                 "current_price": pos.current_price,
             })
         portfolio_info = {
-            "account_value": account.equity,
-            "cash_balance": account.cash,
+            "account_cash_value": account.equity,
+            "value_of_all_positions": account.cash,
             "buying_power": account.non_marginable_buying_power,    # constrain LLM to only use cash - no margin
             "positions": positions_list,
         }
@@ -121,7 +121,14 @@ def cancel_bracket_orders_for_ticker(ticker: str):
     total_reserved = 0
     original_bracket = None
     try:
-        open_orders = trading_client.get_all_orders(status="open", symbols=[ticker])
+
+        req_params = GetOrdersRequest(
+                        status=QueryOrderStatus.OPEN,
+                        symbols=[ticker],
+                    )
+
+        open_orders = trading_client.get_orders(filter=req_params)
+        print(f"Open Orders: {open_orders}")
         for order in open_orders:
             # Check if this is a bracket order. Adjust the attribute check based on your SDK.
             if hasattr(order, "order_class") and order.order_class == OrderClass.BRACKET.value:
@@ -239,7 +246,7 @@ def execute_trade(order_dict: dict):
         )
         try:
             response = trading_client.submit_order(order_data=bracket_order)
-            logging.info(f"Placed bracket order for {ticker}: {response}")
+            logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in order_dict.items()])}")
             return response
         except Exception as e:
             logging.error(f"Error executing trade for {order_dict}: {e}")
@@ -249,13 +256,13 @@ def execute_trade(order_dict: dict):
         if action == "COVER":
             # For COVER orders, cancel existing bracket orders and capture the original bracket data.
             reserved_qty, original_bracket = cancel_bracket_orders_for_ticker(ticker)
-            logging.info(f"Canceled bracket orders for {ticker}; reserved shares: {reserved_qty}; original bracket: {original_bracket}")
             # If the short position held by bracket orders exceeds the COVER qty,
             # re-establish a bracket order for the remaining shares.
             if reserved_qty > qty and original_bracket is not None:
                 remaining_qty = reserved_qty - qty
                 # Use the original bracket's stop loss and take profit.
                 reestablish_bracket_for_remaining_shares(ticker, remaining_qty, original_bracket, order_side)
+
         # Submit a simple market order for SELL or COVER.
         market_order = MarketOrderRequest(
             symbol=ticker,
@@ -266,7 +273,7 @@ def execute_trade(order_dict: dict):
         )
         try:
             response = trading_client.submit_order(order_data=market_order)
-            logging.info(f"Placed market order for {ticker}: {response}")
+            logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in order_dict.items()])}")
             return response
         except Exception as e:
             logging.error(f"Error executing trade for {order_dict}: {e}")
@@ -340,7 +347,7 @@ def main():
     for trade in valid_trades:
         try:
             execute_trade(trade)
-            logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in trade.items()])}")
+            # logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in trade.items()])}")
         except Exception as e:
             logging.error(f"Error executing trade {trade}: {e}")
 

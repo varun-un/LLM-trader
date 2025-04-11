@@ -163,7 +163,7 @@ Ensure that:
 - You can only sell or cover shares that you already own or have shorted, respectively, so make sure to check your portfolio before making these actions.
 {"" if len(portfolio_info.get("positions", [])) > 0 else "You currently have no open positions. You cannot sell or cover any stocks."}
 
-In your response, consider lessons you have learned from past trades that can help you make better decisions in the future. You can update or modify the lessons you learned previously with new lessons you may have learned, but make sure to build off of old lessons learned. You should format these lessons as follows, and make sure to keep them concise:
+In your response, consider lessons you have learned from past trades that can help you make better decisions in the future. You can update or modify the lessons you learned previously with new lessons you may have learned, but make sure to build off of old lessons learned. You should format these lessons as follows, and make sure to keep them specific and useful:
 LESSONS LEARNED: <lesson 1>, <lesson 2>, ...
 
 Make your explanations of your rationale contain your logic and future indicators to look out for. You can place as many trades as you want at once in order to maximize theoretical profits, but if you are content with the current positions, you can make no trades at all as well.

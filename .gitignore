@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 gemini_history
+lessons_learned.txt
