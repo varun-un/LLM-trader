@@ -106,94 +106,6 @@ def get_quote_data(tickers):
 
     return quote_data
 
-def cancel_bracket_orders_for_ticker(ticker: str):
-    """
-    Searches for open bracket orders for the given ticker and cancels them.
-    Saves the stop loss and take profit values from the first found bracket order.
-    
-    Returns:
-        A tuple (total_reserved, original_bracket) where total_reserved is
-        the total number of shares reserved by the bracket orders, and
-        original_bracket is a dictionary of the original bracket details, e.g.:
-            {"stop_loss": value, "take_profit": value}
-        If no bracket order is found, returns (0, None).
-    """
-    total_reserved = 0
-    original_bracket = None
-    try:
-
-        req_params = GetOrdersRequest(
-                        status=QueryOrderStatus.OPEN,
-                        symbols=[ticker],
-                    )
-
-        open_orders = trading_client.get_orders(filter=req_params)
-        print(f"Open Orders: {open_orders}")
-        for order in open_orders:
-            # Check if this is a bracket order. Adjust the attribute check based on your SDK.
-            if hasattr(order, "order_class") and order.order_class == OrderClass.BRACKET.value:
-                total_reserved += int(order.qty)
-                if original_bracket is None:
-                    # Here we assume the order object includes stop loss and take profit details.
-                    # You might need to adjust these attribute names based on Alpaca-py's actual order schema.
-                    try:
-                        orig_stop_loss = float(order.stop_loss["stop_price"])
-                        orig_take_profit = float(order.take_profit["limit_price"])
-                        original_bracket = {
-                            "stop_loss": orig_stop_loss,
-                            "take_profit": orig_take_profit
-                        }
-                    except Exception as parse_err:
-                        logging.error(f"Error parsing original bracket details for {ticker}: {parse_err}")
-                # Cancel this bracket order.
-                cancel_resp = trading_client.cancel_order(order.id)
-                logging.info(f"Canceled bracket order {order.id} for {ticker}: {cancel_resp}")
-    except Exception as e:
-        logging.error(f"Error canceling bracket orders for {ticker}: {e}")
-    return total_reserved, original_bracket
-
-def reestablish_bracket_for_remaining_shares(ticker: str, remaining_qty: int, original_bracket: dict, side: OrderSide):
-    """
-    Re-establishes a new bracket order for the remaining short position using the original
-    stop loss and take profit values.
-    
-    Parameters:
-        ticker (str): The ticker symbol.
-        remaining_qty (int): The number of shares remaining short.
-        original_bracket (dict): A dictionary with keys "stop_loss" and "take_profit" from the original order.
-        side (OrderSide): The order side; should be OrderSide.SELL for covering shorts.
-    
-    Returns:
-        The response from trading_client.submit_order(), or None if an error occurs.
-    """
-    try:
-        # Use the saved values from the original bracket.
-        stop_loss_value = float(original_bracket.get("stop_loss"))
-        take_profit_value = float(original_bracket.get("take_profit"))
-        
-        # Calculate limit_loss_price using the same logic as before.
-        if side == OrderSide.SELL:
-            limit_loss_price = round(stop_loss_value + (stop_loss_value * 0.01), 2)
-        else:
-            limit_loss_price = round(stop_loss_value - (stop_loss_value * 0.01), 2)
-        
-        bracket_order = MarketOrderRequest(
-            symbol=ticker,
-            qty=remaining_qty,
-            side=side,
-            type=OrderType.MARKET,         # Market order for entry.
-            time_in_force=TimeInForce.GTC,
-            order_class=OrderClass.BRACKET,
-            take_profit={"limit_price": take_profit_value},
-            stop_loss={"stop_price": stop_loss_value, "limit_price": limit_loss_price}
-        )
-        new_order = trading_client.submit_order(order_data=bracket_order)
-        logging.info(f"Re-established bracket order for {ticker} with qty {remaining_qty}: {new_order}")
-        return new_order
-    except Exception as e:
-        logging.error(f"Error re-establishing bracket order for {ticker}: {e}")
-        return None
-
 def execute_trade(order_dict: dict):
     """
     Places an order using Alpaca's trading_client based on the provided order dictionary.
@@ -268,6 +180,78 @@ def execute_trade(order_dict: dict):
             return response
         except Exception as e:
             logging.error(f"Error executing trade for {order_dict}: {e}")
+
+            if e["code"] == 4031000 or e["message"].startswith("insufficient qty available"):
+                
+                bracket_ids = e["related_orders"]
+                brackets_to_replace = []        # elems - {"id": id, "qty": qty, "take_profit": take_profit, "order_side": ORDER_SIDE}
+                leftover_qty = qty
+
+                # get the conflicting bracket order
+                for bracket_id in bracket_ids:
+                    if leftover_qty > 0:
+
+                        try:
+                            bracket_order = trading_client.get_order_by_id(bracket_id)
+                        except Exception as e:
+                            logging.error(f"Error fetching the conflicted bracket order {bracket_id}: {e}")
+                            continue
+                        
+                        try:
+                            # check the quantity of this bracket order
+                            # if it's less than the leftover quantity, cancel it and subtract from leftover_qty
+                            # if it's more than the leftover quantity, cancel it and re-establish the bracket order for the remaining shares
+                            if bracket_order.qty <= leftover_qty:
+                                cancel_resp = trading_client.cancel_order_by_id(bracket_id)
+                                leftover_qty -= bracket_order.qty
+                                logging.info(f"Canceled bracket order {bracket_id} for {ticker} of qty {bracket_order.qty} - remaining qty: {leftover_qty}")
+                            else:
+
+                                # TODO: Only conflict with take profits orders - not stop loss orders
+                                # replace jus the take profits order
+                                
+                                order_to_replace = {
+                                    "id": bracket_id,
+                                    "qty": bracket_order.qty - leftover_qty,
+                                    "take_profit": bracket_order.take_profit["limit_price"],
+                                    "order_side": bracket_order.side
+                                }
+                                brackets_to_replace.append(order_to_replace)
+
+                                cancel_resp = trading_client.cancel_order_by_id(bracket_id)
+                                leftover_qty = 0
+                                logging.info(f"Canceled bracket order {bracket_id} for {ticker} of qty {bracket_order.qty} - remaining qty: {leftover_qty}")
+                        except Exception as e:
+                            logging.error(f"Error canceling bracket order {bracket_id}: {e}")
+
+                # Now, retry the cover/sell order
+                second_response = None
+                try:
+                    second_response = trading_client.submit_order(order_data=market_order)
+                    logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in order_dict.items()])}")
+                except Exception as e:
+                    logging.error(f"2nd try error executing trade for {order_dict}: {e}")
+
+                # Re-establish bracket orders for the remaining shares
+                for bracket in brackets_to_replace:
+                    try:
+                        retry_order = MarketOrderRequest(
+                            symbol=ticker,
+                            qty=bracket["qty"],
+                            side=bracket["order_side"],
+                            type=OrderType.MARKET,
+                            time_in_force=TimeInForce.GTC,
+                            take_profit={"limit_price": bracket["take_profit"]},
+                        )
+                        retry_response = trading_client.submit_order(order_data=market_order)
+                        logging.info(f"Re-established TPO trade: {' '.join([f'{k}:{v}' for k, v in retry_response.items()])}")
+                    except Exception as e:
+                        logging.error(f"Error re-establishing the trade for {retry_order}: {e}")
+
+
+                return second_response
+
+
             return None
 
 
