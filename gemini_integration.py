@@ -133,7 +133,7 @@ Here is the summary of the last few times I asked you to analyze the market the 
 Based on this analysis, generate a clear, actionable trading plan that takes into account your available capital and current positions. Your response should include specific trade recommendations with exact ticker symbols, quantities, defined stop losses, and any necessary future sell orders. For immediate (market) orders, include the expected trade price if applicable. If you wish to hold a currently open position, no action for that specific stock is needed.
 
 Format all trade actions strictly as follows. Use only one of the specified actions, and make sure that the ticker you specify is exactly the symbol name that is available on the US market:
-make sure that you include EVERY ONE of the below fields in the required structure.
+make sure that you include EVERY ONE of the below fields in EXACTLY the required structure.
 
 TICKER: <ticker>
 ACTION: <BUY/SELL/SHORT/COVER>
@@ -145,14 +145,14 @@ ORDER TARGET PRICE: <number>
 Also note that SHORT actions are dependent on the availability of shares to borrow, and thus those actions may not always succeed.
 
 Ensure that:
-- Your recommendations respect available capital. Avoid borrowing on margin.
+- Your recommendations respect available capital. You can only buy or short stocks if you have enough buying power to cover the value of the trade. Don't use margin.
 - Trades are priced appropriately (e.g., no orders far below market or with unrealistic stop losses).
 - Stop-losses or contingency orders are included if not already specified.
 - You can only sell or cover shares that you already own or have shorted, respectively, so make sure to check your portfolio before making these actions.
 
 {"" if len(portfolio_info.get("positions", [])) > 0 else "You currently have no open positions. You cannot sell or cover any stocks."}
 
-Make your explanations of your rationale brief and concise. You can place as many trades as you want at once in order to maximize theoretical profits, but if you are content with the current positions, you can make no trades at all as well.
+Make your explanations of your rationale contain your logic and future indicators to look out for. You can place as many trades as you want at once in order to maximize theoretical profits, but if you are content with the current positions, you can make no trades at all as well.
 """
 
         # Combine all sections
