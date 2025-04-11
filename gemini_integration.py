@@ -124,7 +124,7 @@ Here are some example tickers you could trade, and their current values. Remembe
 
         # Add previous plan section if available
         previous_plan_section = f"""
-Here is the result of the last time I asked you to analyze the market and give me a trading plan at that time:
+Here is the summary of the last few times I asked you to analyze the market the trading plan you provided at that time:
 {previous_plan}
 """ if (previous_plan and len(previous_plan) > 5) else ""
 
@@ -152,7 +152,7 @@ Ensure that:
 
 {"" if len(portfolio_info.get("positions", [])) > 0 else "You currently have no open positions. You cannot sell or cover any stocks."}
 
-Make your explanations of your rationale brief and concise. You can place as many trades as you want at once in order to maximize theoretical profits. 
+Make your explanations of your rationale brief and concise. You can place as many trades as you want at once in order to maximize theoretical profits, but if you are content with the current positions, you can make no trades at all as well.
 """
 
         # Combine all sections
@@ -182,7 +182,7 @@ Make your explanations of your rationale brief and concise. You can place as man
         new_entry = new_entry.replace("Okay, I will perform a real-time analysis of the stock market using the provided data and formulate a trading plan. I will focus on identifying potential opportunities based on market trends, technical indicators, sentiment analysis, and fundamental developments.", "").strip()
 
         # call Gemini to summarize the entry
-        prompt = f"""The following entry is the trading plan of a day trader assistant. Please generate a 4 sentence summary for it, while keeping the key details about the proposed plan and information intact. 
+        prompt = f"""The following entry is the trading plan of a day trader assistant. Please generate a 3-4 sentence summary for it, while keeping the key details about the proposed plan and information intact. 
 This summary should give information about the rationale behind the proposed trades, as well as what to look out for over the course of the next 15 minutes to know whether to close the position or not, should the conditions or situation change. The entry is:
 
 {new_entry}

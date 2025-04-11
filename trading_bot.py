@@ -214,17 +214,17 @@ def main():
     quote_data = get_quote_data(relevant_tickers)
     logging.info("Quote Data: " + json.dumps(quote_data, indent=2))
 
-    # 5. Retrieve the last 3 Gemini responses for context.
-    how_many_to_get = 3
+    # 5. Retrieve the last 5 Gemini responses for context.
+    how_many_to_get = 5
     last_history, history_times = gemini_client.get_last_history(how_many_to_get)
     previous_plan = ""
     for idx, history in enumerate(last_history):
         if history_times[idx] == 'w':
-            previous_plan += f"Plan from last week before close: \n{history}\n"
+            previous_plan += f"Summary of plan from last week before close: \n{history}\n"
         elif history_times[idx] == 'd':
-            previous_plan += f"Plan from yesterday before close: \n{history}\n"
+            previous_plan += f"Summary of plan from yesterday before close: \n{history}\n"
         else:
-            previous_plan += f"Plan from {(how_many_to_get - idx) * 5} minutes ago: \n{history}\n"
+            previous_plan += f"Summary of plan from {(how_many_to_get - idx) * 5} minutes ago: \n{history}\n"
 
     # 6. Build the Gemini prompt.
     gemini_prompt = gemini_client.build_prompt(portfolio_info, quote_data, previous_plan)
