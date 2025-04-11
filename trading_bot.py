@@ -181,6 +181,12 @@ def execute_trade(order_dict: dict):
         except Exception as e:
             logging.error(f"Error executing trade for {order_dict}: {e}")
 
+            # turn API error into a dict
+            try:
+                e = json.loads(str(e))
+            except Exception as e:
+                logging.error(f"Error parsing API error: {e}")
+
             if e["code"] == 4031000 or e["message"].startswith("insufficient qty available"):
                 
                 bracket_ids = e["related_orders"]
@@ -198,6 +204,9 @@ def execute_trade(order_dict: dict):
                             continue
                         
                         try:
+
+                            bracket_order.qty = float(bracket_order.qty)
+
                             # check the quantity of this bracket order
                             # if it's less than the leftover quantity, cancel it and subtract from leftover_qty
                             # if it's more than the leftover quantity, cancel it and re-establish the bracket order for the remaining shares
@@ -289,7 +298,7 @@ def main():
 
     # 4. Fetch market quotes for these tickers using Finnhub.
     quote_data = get_quote_data(relevant_tickers)
-    logging.info("Quote Data: " + json.dumps(quote_data, indent=2))
+    # logging.info("Quote Data: " + json.dumps(quote_data, indent=2))
 
     # 5. Retrieve the last 5 Gemini responses for context.
     how_many_to_get = 5
@@ -324,7 +333,7 @@ def main():
             execute_trade(trade)
             # logging.info(f"Executed trade: {' '.join([f'{k}:{v}' for k, v in trade.items()])}")
         except Exception as e:
-            logging.error(f"Error executing trade {trade}: {e}")
+            logging.error(f"Generic uncaught error executing trade {trade}: {e}")
 
 if __name__ == "__main__":
     main()
