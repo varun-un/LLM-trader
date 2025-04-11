@@ -31,15 +31,34 @@ def validate_trades(trades, quote_data, portfolio_info):
     
     valid_trades = []
     try:
-        account_value = float(portfolio_info.get("account_value", 0))
+        account_value = float(portfolio_info.get("buying_power", 0))
     except Exception:
         account_value = 0
+
+    open_positions = {x.get("ticker", ""):x for x in portfolio_info.get("positions", [])}
 
     # Process the unique trades
     for trade in unique_trades.values():
         ticker = trade.get("ticker")
         action = trade.get("action", "").upper()
         quantity = trade.get("quantity")
+
+        # check if the ticker is in our portfolio
+        if ticker in open_positions.keys():
+            # if the action cancels the position, it is automatically valid
+            if action in ["SELL", "SHORT"]:
+                if float(open_positions[ticker].get("qty")) >= 0:
+                    valid_trades.append(trade)
+                    continue
+            elif action in ["COVER"]:
+                if float(open_positions[ticker].get("qty")) < 0:
+                    valid_trades.append(trade)
+                    continue
+            elif action in ["BUY"]:
+                if float(open_positions[ticker].get("qty")) <= 0:
+                    valid_trades.append(trade)
+                    continue
+
 
         # Check if SELL/COVER actions have corresponding positions
         if action == "SELL":

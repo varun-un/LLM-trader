@@ -51,7 +51,7 @@ def get_portfolio_info():
             "account_value": account.equity,
             "cash_balance": account.cash,
             "buying_power": account.buying_power,
-            "amount_borrowed_on_margin": max(0, float(account.cash) - float(account.equity)),
+            "non_marginable_buying_power": account.non_marginable_buying_power,
             "positions": positions_list,
         }
         return portfolio_info
