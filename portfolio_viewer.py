@@ -54,3 +54,8 @@ with st.spinner("Fetching portfolio data..."):
         st.pyplot(fig)
     except Exception as e:
         st.error(f"Failed to fetch portfolio history: {e}")
+
+
+# TO RUN:
+# streamlit run portfolio_viewer.py
+
